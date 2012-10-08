@@ -7,15 +7,15 @@ This toolkit is comprised of many different RQM-enhancing apps which could compr
 
 Please note these apps are really only valid for progress on the current iteration or release. They can look back at tests included in past iterations but results and progress will not be available.  They can also be used to verify planned tests for an upcoming iteration or release.  Percent complete on release MAY be off by a percentage point or 3 depending on how many tests are re-used, as the Last Result verdict is the only one used for the release-focused apps.
 
-The apps can be grouped into three categories:
-
-Scheduled Test Case tables:
-
+The apps can be grouped into three categories:<P>
+<B>
+Scheduled Test Case tables:<P>
+</B>
 Scheduled Test Case List per Iteration - no Summary:  This app lists all test cases scheduled for the Iteration in a tabular format, including columns for if the test was newly created this iteration, its last run date, last verdict, test method, project, associated work product, work product state, and more.  Pulls all tests assigned to test sets, defects, and stories for a given iteration.
-Scheduled Test Cases per Iteration with Summary: This app is the same as the item above but adds a textual summary of the iteration test progress, including items like test counts, automated and manual breakdowns, percent pass/fail, and percent complete.
-Scheduled Test Cases per Release - no Summary: This app is the same as the iterative app (as listed above) with the tabular data output of all tests scheduled for the release.
-Scheduled Test Cases per Release with Summary: This app is the same as the iterative app (as listed above) which includes the tabular output as well as detailed textual release summary.
-
+<BR>Scheduled Test Cases per Iteration with Summary: This app is the same as the item above but adds a textual summary of the iteration test progress, including items like test counts, automated and manual breakdowns, percent pass/fail, and percent complete.
+<BR>Scheduled Test Cases per Release - no Summary: This app is the same as the iterative app (as listed above) with the tabular data output of all tests scheduled for the release.
+<BR>Scheduled Test Cases per Release with Summary: This app is the same as the iterative app (as listed above) which includes the tabular output as well as detailed textual release summary.
+<B>
 Iteration Table Screenshot:<P>
 ![Alt text](https://github.com/jkrooswyk/Rally-RQM-Toolkit/raw/master/Screen Shot - Iterative Test List 1.0.png)
 

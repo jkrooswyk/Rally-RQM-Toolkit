@@ -35,3 +35,5 @@ CSV-exportable Test table with steps:
 
 Exportable Test Cases with Steps - Chrome, FF: This app presents an iterative table with the test steps.  It is exportable to CSV, which downloads within Chrome.  Note the limitations, since this uses Data URLs - no single quote, double quote, or commas are allows in test names or export will fail. Firefox has a habit of assigning random names to downloaded files!
 Exportable Test Cases with Steps - Explorer, any other browser: This app is the same as listed above, except for any browser - since not all browsers support downloads of Data URL files the same way, this app presents the CSV in a web page for copy and paste into an actual file, which can be saved and used with Excel.  Same limitations apply around quotes and commas in test name fields.
+
+Watch the brief Jing video here for test table and summary apps: http://screencast.com/t/xDKyvHsLNu

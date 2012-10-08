@@ -1,7 +1,7 @@
 Rally-RQM-Toolkit
 =================
 
-This is a series of apps which support Rally's test functions and provide test status iteratively and per release.
+This is a series of SDK 1.0 apps which support Rally's test functions and provide test status iteratively and per release.
 <P>
 This toolkit is comprised of many different RQM-enhancing apps which could comprise 5+ custom pages in Rally for a test group.
 <P>

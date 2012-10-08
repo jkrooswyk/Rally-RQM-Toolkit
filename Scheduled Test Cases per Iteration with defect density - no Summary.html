@@ -1,0 +1,729 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!-- Copyright (c) 2010  Rally Software Development Corp.  All rights reserved -->
+<html>
+    <head>
+        <title>All Test Cases per Iteration no Summary</title>
+        <meta name="Name" content="Test Cases Per Iteration no Summary" />
+        <meta name="Version" content="1.4" />
+        <meta name="Vendor" content="Rally Software" />
+        <meta name="Author" content="Joel K" />
+        <script src='/apps/1.31/sdk.js' type='text/javascript'>
+        </script>
+        <script type="text/javascript">
+            
+            //This app queries iteratively all test cases associated to user stories and defects.  It also includes those in scheduled test sets.  Version 1.4 adds Defect ID's and Names associated to test cases for current iteration.
+
+            // declare global variables
+            var gStories = new Array();
+            var gIterationDropdown;
+            var gTable;
+            
+            function tableExample(){
+            
+                var rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__', '__PROJECT_OID__', '__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
+                
+                function onIterationSelected(){
+                
+                    var queryStr;
+                    var queryArray = [];
+                    var date = new Date();
+                    var defect_startdate = new Date(
+                        date.getFullYear(), 
+                        date.getMonth(), 
+                        date.getDate() - 35,
+                        date.getHours(),
+                        date.getMinutes(),
+                        date.getSeconds(),
+                        date.getMilliseconds()
+                    );
+                    var defect_startdate = defect_startdate.format("isoUtcDateTime");
+                    
+                    // clean out any old stuff from prior runs
+                    gStories = [];
+                    gDefects = [];
+                    gTestSets = [];
+                    
+                    if (gTable != null) 
+                        gTable.destroy();
+                    
+                    dojo.empty(dojo.byId('table_output'));
+                    
+                    // setup query strings
+                    queryStr = "(Iteration.Name = " + "\"" + gIterationDropdown.getSelectedName() + "\")";
+                    itrquery = "(Name = " + "\"" + gIterationDropdown.getSelectedName() + "\")";
+                    defectdensityquery = "(OpenedDate >= " + "\""+ defect_startdate + "\")";
+                    
+                    // setup story query
+                    queryArray[0] = {
+                        key: 'stories',
+                        type: 'HierarchicalRequirement',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,LastVerdict,LastRun,CreationDate,Method'
+                    };
+                    
+                    // setup defect query
+                    queryArray[1] = {
+                        key: 'defects',
+                        type: 'Defect',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,LastVerdict,LastRun,CreationDate,Method'
+                    };
+
+                    // setup test set query
+                    queryArray[2] = {
+                        key: 'testset',
+                        type: 'TestSet',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,TestCases,LastVerdict,LastRun,CreationDate,Method'
+                    };
+
+                    // setup iteration query
+                    queryArray[3] = {
+                        key: 'iteration',
+                        type: 'Iteration',
+                        query: itrquery,
+                        fetch: 'StartDate,EndDate'
+                    };
+                                        
+                    // setup defect density query (grab all defects entered last 35 days)
+                    queryArray[4] = {
+                        key: 'defectdensity',
+                        type: 'Defect',
+                        //query: defectdensityquery,
+                        fetch: 'FormattedID,Name,TestCase,CreationDate'
+                    };                                        
+                                        
+                    // execute query
+                    rallyDataSource.findAll(queryArray, populateTable);
+                    
+                }
+                
+                function populateTable(results){
+                console.log(results);   
+                             
+                    var nbrStories;
+                    var nbrDefects;
+                    var nbrTestCases;
+                    var nbrTestSets;
+                    var aStory;
+                    var aDefect;
+                    var aTest;
+                    var aTestSet;
+                    var type;
+                    var alltests = 0;
+                    var storytests = 0;
+                    var defecttests = 0;
+                    var settests = 0;
+                    var automationcounter = 0;
+                    var newtestcounter = 0;
+                    var passcounter = 0;
+                    var failcounter = 0;
+                    var notruncounter = 0;
+                    var automatedpass = 0;
+                    var automationnotdone = 0;
+                    var manualpass = 0;
+                    var manualnotdone = 0;
+                    var automatedfail = 0;
+                    var manualfail = 0;
+                    
+                    var tableDiv;
+                    var tableConfig;
+                    
+                    var testRowInfo;
+                    
+                    // create the output table
+                    tableDiv = document.getElementById('table_output');
+                    tableConfig = {
+                        columns: [{
+                            key: 'New Test?'
+                            //width: "10%"
+                        }, {                            
+                            key: 'Test Case ID' 
+                            //width: "10%"
+                        }, {
+                            key: 'Test Case Name' 
+                            //width: "25%"
+                        }, {
+                            key: 'Last Run Date' 
+                            //width: "10%"
+                        }, {
+                            key: 'Last Verdict' 
+                            //width: "10%"
+                        }, {
+                            key: 'Test Method' 
+                            //width: "10%"
+                        }, {
+                            key: 'Project' 
+                            //width: "10%"
+                        }, {
+                            key: 'Work Product Type' 
+                            //width: "10%"
+                        }, {
+                            key: 'Work Product Name' 
+                            //width: "20%"
+                        }, {
+                            key: 'Work Product State'
+                            //width: "10%"
+                        }, {
+                            key: '# Defects Found'
+                            //width: "10%"
+                        }, {
+                            key: 'Defect IDs'
+                            //width: "10%"
+                        }]
+                    };
+                    
+                    gTable = new rally.sdk.ui.Table(tableConfig);
+                    
+                    // localize stories
+                    gStories = gStories.concat(results.stories);
+                    
+                    // get # of stories
+                    nbrStories = gStories.length;
+                
+                    // loop through each story
+                    for (var storyNdx = 0; storyNdx < nbrStories; storyNdx++) {
+                        
+                        // localize the story
+                        aStory = gStories[storyNdx];
+                          
+                        nbrTestCases = aStory.TestCases.length;
+                                                    
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            newthisiteration = "";
+                            aTest = aStory.TestCases[testNdx];
+                            type = "Story";
+                            storytests++;
+
+                            // add contents to null results
+                            aTest.LastRun = aTest.LastRun || "000000000000";
+                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
+
+                            //convert dates to something useful
+                            date1 = aTest.LastRun.substr(0,4);
+                            date2 = aTest.LastRun.substr(5,2);
+                            date3 = aTest.LastRun.substr(8,2);
+                            dater = date1+date2+date3;
+                            idater = parseInt(dater);
+
+                            itrdate1 = results.iteration[0].StartDate.substr(0,4);
+                            var itrdate2 = results.iteration[0].StartDate.substr(5,2);
+                            var itrdate3 = results.iteration[0].StartDate.substr(8,2);
+                            var itrdater = itrdate1+itrdate2+itrdate3;
+                            iitrdater = parseInt(itrdater);
+
+                            var itredate1 = results.iteration[0].EndDate.substr(0,4);
+                            var itredate2 = results.iteration[0].EndDate.substr(5,2);
+                            var itredate3 = results.iteration[0].EndDate.substr(8,2);
+                            var itredater = itredate1+itredate2+itredate3;
+                            iitredater = parseInt(itredater);
+
+                            // check if test was run during current iteration
+                            if (idater >= iitrdater && idater <= iitredater) {
+                               run = aTest.LastRun.substr(0,10);
+                               verdict = aTest.LastVerdict.substr(0,10);
+                            } else {
+                               run = "<I>[No Data this Iteration]</I>";
+                               verdict = "<I>[No Results this Iteration]</I>";
+                            };
+
+                            // check if test was created during current iteration
+                            createddate1 = aTest.CreationDate.substr(0,4);
+                            createddate2 = aTest.CreationDate.substr(5,2);
+                            createddate3 = aTest.CreationDate.substr(8,2);
+                            createddater = createddate1+createddate2+createddate3;
+                            icreateddater = parseInt(createddater);
+                            
+                            if (icreateddater >= iitrdater && icreateddater <= iitredater) {
+                               newtestcounter++;
+                               newthisiteration = "<p style=color:green>New!</p>";
+                            };
+ 
+                            // check if test was automated
+                            if (aTest.Method != "Manual") {
+                                automationcounter++;
+                            };
+
+                            // verify verdict for counter
+                            if (verdict == "Pass") {
+                               passcounter++;
+                            } else if (verdict == "Fail") {
+                               failcounter++;
+                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
+                               notruncounter++;
+                            };
+
+                            //check number of automated and manual tests passing, failing, and not done
+                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
+                                automatedpass++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
+                                manualpass++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
+                                automatedfail++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
+                                manualfail++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                automationnotdone++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                manualnotdone++;
+                            };
+
+                            //check number of defects entered this iteration per test
+                            nbrDDDefects = results.defectdensity.length;
+                            var testdefectcounter = 0;
+                            
+                            aTest.DefectIDs = "";                                                                                    
+                            for (var DDNdx = 0; DDNdx < nbrDDDefects; DDNdx++) {
+                               defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";
+                                if (results.defectdensity[DDNdx].CreationDate >= results.iteration[0].StartDate) {
+                                    if (defecttestcaseID != "noID") {
+                                        if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
+                                            testdefectcounter++;
+                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
+                                            
+                                        };
+                                    };
+                                };
+                            };
+                            
+                            if (aTest.DefectIDs == "") {
+                                aTest.DefectIDs = "<I>{No Defects Found}</I>";
+                            };
+                            
+                            testRowInfo = {
+                                'Work Product Name': aStory.Name,
+                                'Work Product State': aStory.ScheduleState,
+                                'Plan Estimate': aStory.PlanEstimate,
+                                'Test Case Name': aTest.Name,
+                                'Test Case ID': aTest.FormattedID,
+                                'Project': aTest.Project.Name,
+                                'Work Product Type': type,
+                                'Last Run Date': run,
+                                'Last Verdict': verdict,
+                                'Test Method': aTest.Method,
+                                'New Test?': newthisiteration,
+                                '# Defects Found': testdefectcounter,
+                                'Defect IDs': aTest.DefectIDs
+                            };
+                            gTable.addRow(testRowInfo);
+                            
+                        };
+                        // end for each test case
+                    
+                    };
+                    // end for each story
+
+                    // localize defects
+                    gDefects = gDefects.concat(results.defects);
+                      
+                    // get # of DEFECTS
+                    nbrDefects = gDefects.length;
+               
+                    // loop through each defect
+                    for (var defectNdx = 0; defectNdx < nbrDefects; defectNdx++) {
+                        
+                        // localize the defect
+                        aDefect = gDefects[defectNdx];
+                          
+                        nbrTestCases = aDefect.TestCases.length;                                                               
+                     
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            newthisiteration = "";
+                            aTest = aDefect.TestCases[testNdx];
+                            type = "Defect";
+                            defecttests++;
+
+                            // add contents to null results
+                            aTest.LastRun = aTest.LastRun || "000000000000";
+                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
+
+                            //convert dates to something useful
+                            date1 = aTest.LastRun.substr(0,4);
+                            date2 = aTest.LastRun.substr(5,2);
+                            date3 = aTest.LastRun.substr(8,2);
+                            dater = date1+date2+date3;
+                            idater = parseInt(dater);
+
+                            // check if test was run during current iteration
+                            if (idater >= iitrdater && idater <= iitredater) {
+                               run = aTest.LastRun.substr(0,10);
+                               verdict = aTest.LastVerdict.substr(0,10);
+                            } else {
+                               run = "<I>[No Data this Iteration]</I>";
+                               verdict = "<I>[No Results this Iteration]</I>";
+                            };
+
+                            // check if test was created during current iteration
+                            createddate1 = aTest.CreationDate.substr(0,4);
+                            createddate2 = aTest.CreationDate.substr(5,2);
+                            createddate3 = aTest.CreationDate.substr(8,2);
+                            createddater = createddate1+createddate2+createddate3;
+                            icreateddater = parseInt(createddater);
+                            
+                            if (icreateddater >= iitrdater && icreateddater <= iitredater) {
+                               newtestcounter++;
+                               newthisiteration = "<p style=color:green>New!</p>";
+                            };
+
+                            // check if test was automated
+                            if (aTest.Method != "Manual") {
+                                automationcounter++;
+                            };
+
+                            // verify verdict for counter
+                            if (verdict == "Pass") {
+                               passcounter++;
+                            } else if (verdict == "Fail") {
+                               failcounter++;
+                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
+                               notruncounter++;
+                            };
+
+                            //check number of automated and manual tests passing and not done
+                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
+                                automatedpass++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
+                                manualpass++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
+                                automatedfail++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
+                                manualfail++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                automationnotdone++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                manualnotdone++;
+                            };
+
+                            //check number of defects entered this iteration per test
+                            nbrDDDefects = results.defectdensity.length;
+                            var testdefectcounter = 0;
+
+                            aTest.DefectIDs = "";                                                                 
+                            for (var DDNdx = 0; DDNdx < nbrDDDefects; DDNdx++) {
+                               defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";
+                                if (results.defectdensity[DDNdx].CreationDate >= results.iteration[0].StartDate) {
+                                    if (defecttestcaseID != "noID") {
+                                        if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
+                                            testdefectcounter++;
+                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
+                                        };
+                                    };
+                                };
+                            };
+
+                            if (aTest.DefectIDs == "") {
+                                aTest.DefectIDs = "<I>{No Defects Found}</I>";
+                            };
+                                                                                       
+                            testRowInfo = {
+                                'Work Product Name': aDefect.Name,
+                                'Work Product State': aDefect.ScheduleState,
+                                'Plan Estimate': aDefect.PlanEstimate,
+                                'Test Case Name': aTest.Name,
+                                'Test Case ID': aTest.FormattedID,
+                                'Project': aTest.Project.Name,
+                                'Work Product Type': type,
+                                'Last Run Date': run,
+                                'Last Verdict': verdict,
+                                'Test Method': aTest.Method,
+                                'New Test?': newthisiteration,
+                                '# Defects Found': testdefectcounter,
+                                'Defect IDs': aTest.DefectIDs
+                            };
+                            gTable.addRow(testRowInfo);
+                           
+                        };
+                        // end for each test case
+                    
+                    };
+                    // end for each DEFECT
+
+                    // localize test sets
+                    gTestSets= gTestSets.concat(results.testset);
+                      
+                    // get # of test sets
+                    nbrTestSets = gTestSets.length;
+
+                    // loop through each test set
+                    for (var testsetNdx = 0; testsetNdx < nbrTestSets; testsetNdx++) {
+                        
+                        // localize the test sets
+                        aTestSet = gTestSets[testsetNdx];
+                          
+                        nbrTestCases = aTestSet.TestCases.length;
+                     
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            newthisiteration = "";
+                            aTest = aTestSet.TestCases[testNdx];
+                            type = "Test Set";
+                            settests++;
+
+                            // add contents to null results
+                            aTest.LastRun = aTest.LastRun || "000000000000";
+                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
+
+                            //convert dates to something useful
+                            date1 = aTest.LastRun.substr(0,4);
+                            date2 = aTest.LastRun.substr(5,2);
+                            date3 = aTest.LastRun.substr(8,2);
+                            dater = date1+date2+date3;
+                            idater = parseInt(dater);
+
+                            // check if test was run during current iteration
+                            if (idater >= iitrdater && idater <= iitredater) {
+                               run = aTest.LastRun.substr(0,10);
+                               verdict = aTest.LastVerdict.substr(0,10);
+                            } else {
+                               run = "<I>[No Data this Iteration]</I>";
+                               verdict = "<I>[No Results this Iteration]</I>";
+                            };
+
+                            // check if test was created during current iteration
+                            createddate1 = aTest.CreationDate.substr(0,4);
+                            createddate2 = aTest.CreationDate.substr(5,2);
+                            createddate3 = aTest.CreationDate.substr(8,2);
+                            createddater = createddate1+createddate2+createddate3;
+                            icreateddater = parseInt(createddater);
+                            
+                            if (icreateddater >= iitrdater && icreateddater <= iitredater) {
+                               newtestcounter++;
+                               newthisiteration = "<p style=color:green>New!</p>";
+                            };
+
+                            // check if test was automated
+                            if (aTest.Method != "Manual") {
+                                automationcounter++;
+                            };
+                           
+                            // verify verdict for counter
+                            if (verdict == "Pass") {
+                               passcounter++;
+                            } else if (verdict == "Fail") {
+                               failcounter++;
+                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
+                               notruncounter++;
+                            };
+
+                            //check number of automated and manual tests passing and not done
+                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
+                                automatedpass++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
+                                manualpass++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
+                                automatedfail++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
+                                manualfail++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                automationnotdone++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                manualnotdone++;
+                            };
+
+                            //check number of defects entered this iteration per test
+                            nbrDDDefects = results.defectdensity.length;
+                            var testdefectcounter = 0;
+
+                            aTest.DefectIDs = "";                                                                            
+                            for (var DDNdx = 0; DDNdx < nbrDDDefects; DDNdx++) {
+                               defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";
+                                if (results.defectdensity[DDNdx].CreationDate >= results.iteration[0].StartDate) {
+                                    if (defecttestcaseID != "noID") {
+                                        if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
+                                            testdefectcounter++;
+                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
+                                        };
+                                    };
+                                };
+                            };
+
+                            if (aTest.DefectIDs == "") {
+                                aTest.DefectIDs = "<I>{No Defects Found}</I>";
+                            };
+                                                                                    
+                            testRowInfo = {
+                                'Work Product Name': aTestSet.Name,
+                                'Work Product State': aTestSet.ScheduleState,
+                                'Plan Estimate': aTestSet.PlanEstimate,
+                                'Test Case Name': aTest.Name,
+                                'Test Case ID': aTest.FormattedID,
+                                'Project': aTest.Project.Name,
+                                'Work Product Type': type,
+                                'Last Run Date': run,
+                                'Last Verdict': verdict,
+                                'Test Method': aTest.Method,
+                                'New Test?': newthisiteration,
+                                '# Defects Found': testdefectcounter,
+                                'Defect IDs': aTest.DefectIDs
+                            };
+                            gTable.addRow(testRowInfo);
+                           
+                        };
+                        // end for each test case
+
+                    };
+                   
+                    // end for each test set
+                       
+                    // display the summary and populated table
+                    document.getElementById('summary').innerHTML = ("<P><font color = red>Note: This app generates test case result data for current and future iterations - it is not for historical test case verdict reference.</font><BR>");
+                    
+                    gTable.display(tableDiv);
+                    
+                };
+                // end function
+
+        //format date for defect density query
+        var dateFormat = function () {
+            var	token = /d{1,4}|m{1,4}|yy(?:yy)?|([HhMsTt])\1?|[LloSZ]|"[^"]*"|'[^']*'/g,
+            timezone = /\b(?:[PMCEA][SDP]T|(?:Pacific|Mountain|Central|Eastern|Atlantic) (?:Standard|Daylight|Prevailing) Time|(?:GMT|UTC)(?:[-+]\d{4})?)\b/g,
+            timezoneClip = /[^-+\dA-Z]/g,
+            pad = function (val, len) {
+                val = String(val);
+                len = len || 2;
+                while (val.length < len) val = "0" + val;
+                return val;
+            };
+
+            //supporting functions are cached through closure
+        return function (date, mask, utc) {
+		var dF = dateFormat;
+
+		// You can't provide utc if you skip other args (use the "UTC:" mask prefix)
+		if (arguments.length == 1 && Object.prototype.toString.call(date) == "[object String]" && !/\d/.test(date)) {
+			mask = date;
+			date = undefined;
+		}
+
+		// Passing date through Date applies Date.parse, if necessary
+		date = date ? new Date(date) : new Date;
+		if (isNaN(date)) throw SyntaxError("invalid date");
+
+		mask = String(dF.masks[mask] || mask || dF.masks["default"]);
+
+		// Allow setting the utc argument via the mask
+		if (mask.slice(0, 4) == "UTC:") {
+			mask = mask.slice(4);
+			utc = true;
+		}
+
+		var	_ = utc ? "getUTC" : "get",
+			d = date[_ + "Date"](),
+			D = date[_ + "Day"](),
+			m = date[_ + "Month"](),
+			y = date[_ + "FullYear"](),
+			H = date[_ + "Hours"](),
+			M = date[_ + "Minutes"](),
+			s = date[_ + "Seconds"](),
+			L = date[_ + "Milliseconds"](),
+			o = utc ? 0 : date.getTimezoneOffset(),
+			flags = {
+				d:    d,
+				dd:   pad(d),
+				ddd:  dF.i18n.dayNames[D],
+				dddd: dF.i18n.dayNames[D + 7],
+				m:    m + 1,
+				mm:   pad(m + 1),
+				mmm:  dF.i18n.monthNames[m],
+				mmmm: dF.i18n.monthNames[m + 12],
+				yy:   String(y).slice(2),
+				yyyy: y,
+				h:    H % 12 || 12,
+				hh:   pad(H % 12 || 12),
+				H:    H,
+				HH:   pad(H),
+				M:    M,
+				MM:   pad(M),
+				s:    s,
+				ss:   pad(s),
+				l:    pad(L, 3),
+				L:    pad(L > 99 ? Math.round(L / 10) : L),
+				t:    H < 12 ? "a"  : "p",
+				tt:   H < 12 ? "am" : "pm",
+				T:    H < 12 ? "A"  : "P",
+				TT:   H < 12 ? "AM" : "PM",
+				Z:    utc ? "UTC" : (String(date).match(timezone) || [""]).pop().replace(timezoneClip, ""),
+				o:    (o > 0 ? "-" : "+") + pad(Math.floor(Math.abs(o) / 60) * 100 + Math.abs(o) % 60, 4),
+				S:    ["th", "st", "nd", "rd"][d % 10 > 3 ? 0 : (d % 100 - d % 10 != 10) * d % 10]
+			};
+
+		return mask.replace(token, function ($0) {
+			return $0 in flags ? flags[$0] : $0.slice(1, $0.length - 1);
+		});
+	};
+    }();
+
+    // Some common format strings
+    dateFormat.masks = {
+        "default":      "ddd mmm dd yyyy HH:MM:ss",
+        shortDate:      "m/d/yy",
+        mediumDate:     "mmm d, yyyy",
+        longDate:       "mmmm d, yyyy",
+        fullDate:       "dddd, mmmm d, yyyy",
+        shortTime:      "h:MM TT",
+        mediumTime:     "h:MM:ss TT",
+        longTime:       "h:MM:ss TT Z",
+        isoDate:        "yyyy-mm-dd",
+        isoTime:        "HH:MM:ss",
+        isoDateTime:    "yyyy-mm-dd'T'HH:MM:ss",
+        isoUtcDateTime: "UTC:yyyy-mm-dd'T'HH:MM:ss'Z'"
+    };
+
+    // Internationalization strings
+    dateFormat.i18n = {
+        dayNames: [
+            "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+            "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+        ],
+        monthNames: [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
+        ]
+    };
+
+        // For convenience...
+        Date.prototype.format = function (mask, utc) {
+        return dateFormat(this, mask, utc);
+    };                
+                
+                function init(){
+                
+                    // Setup Iteration Dropdown
+                    var iterationDropdownConfig = {};
+                    gIterationDropdown = new rally.sdk.ui.IterationDropdown(iterationDropdownConfig, rallyDataSource);
+                    
+                    gIterationDropdown.display("iteration_selection", onIterationSelected);
+                    
+                }
+                
+                // call querying function
+                init();
+                
+            }
+            
+            rally.addOnLoad(tableExample);
+        </script>
+    </head>
+    <body>
+        <div id="iteration_selection">
+        </div><P>
+        <div id="summary">
+        </div><P>
+        <div id="table_output">
+        </div>
+    </body>
+</html>

@@ -1,0 +1,607 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!-- Copyright (c) 2010  Rally Software Development Corp.  All rights reserved -->
+<html>
+    <head>
+        <title>Test Case CUMULATIVE Summary Per Release</title>
+        <meta name="Name" content="Test Case CUMULATIVE Summary Per Release" />
+        <meta name="Version" content="1.0" />
+        <meta name="Vendor" content="Rally Software" />
+        <meta name="Author" content="Joel K" />
+        <script src='/apps/1.31/sdk.js' type='text/javascript'>
+        </script>
+        <script type="text/javascript">
+            
+            //This app queries per RELEASE all test cases associated to user stories and defects.  It also includes those in scheduled test sets.
+
+            // declare global variables
+            var gStories = new Array();
+            var gReleaseDropdown;
+            var gTable;
+            
+            function tableExample(){
+            
+                var rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__', '__PROJECT_OID__', '__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
+                
+                function onReleaseSelected(){
+                
+                    var queryStr;
+                    var queryArray = [];
+                    
+                    // clean out any old stuff from prior runs
+                    gStories = [];
+                    gDefects = [];
+                    gTestSets = [];
+                    
+                    if (gTable != null) 
+                        gTable.destroy();
+                    
+                    dojo.empty(dojo.byId('table_output'));
+                    
+                    // setup query string
+                    queryStr = "(Release.Name = " + "\"" + gReleaseDropdown.getSelectedName() + "\")";
+                    relquery = "(Name = " + "\"" + gReleaseDropdown.getSelectedName() + "\")";
+                    
+                    // setup story query
+                    queryArray[0] = {
+                        key: 'stories',
+                        type: 'HierarchicalRequirement',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,LastVerdict,LastRun,CreationDate,Method,Iteration,Release'
+                    };
+                    
+                    // setup defect query
+                    queryArray[1] = {
+                        key: 'defects',
+                        type: 'Defect',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,LastVerdict,LastRun,CreationDate,Method,Iteration,Release'
+                    };
+
+                    // setup test set query
+                    queryArray[2] = {
+                        key: 'testset',
+                        type: 'TestSet',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,TestCases,LastVerdict,LastRun,CreationDate,Method,Iteration,Release'
+                    };
+
+                    // setup iteration query
+                    queryArray[3] = {
+                        key: 'iteration',
+                        type: 'Iteration',
+                        fetch: 'Name,StartDate,EndDate'
+                    };
+
+                    // setup release query
+                    queryArray[4] = {
+                        key: 'release',
+                        type: 'Release',
+                        query: relquery,
+                        fetch: 'ReleaseStartDate,ReleaseDate'
+                    };
+                                        
+                    // execute query
+                    rallyDataSource.findAll(queryArray, populateTable);
+                    
+                }
+                
+                function populateTable(results){
+                console.log(results);   
+                             
+                    var nbrStories;
+                    var nbrDefects;
+                    var nbrTestCases;
+                    var nbrTestSets;
+                    var aStory;
+                    var aDefect;
+                    var aTest;
+                    var aTestSet
+                    var type;
+                    var alltests = 0;
+                    var storytests = 0;
+                    var defecttests = 0;
+                    var settests = 0;
+                    var automationcounter = 0;
+                    var newtestcounter = 0;
+                    var passcounter = 0;
+                    var failcounter = 0;
+                    var notruncounter = 0;
+                    var automatedpass = 0;
+                    var automationnotdone = 0;
+                    var manualpass = 0;
+                    var manualnotdone = 0;
+                    var automatedfail = 0;
+                    var manualfail = 0;
+                    var validiterationstart = [];
+                    var validiterationend = [];
+                    var validiterationname = [];
+                    var verdict;
+                    var run;
+                    
+                    var tableDiv;
+                    var tableConfig;
+                    
+                    var testRowInfo;
+ 
+                    // figure out which iterations are members of this release
+                    var nbrIterations = results.iteration.length;
+                   
+                    //convert release dates to something useful
+                    relstartdate1 = results.release[0].ReleaseStartDate.substr(0,4);
+                    relstartdate2 = results.release[0].ReleaseStartDate.substr(5,2);
+                    relstartdate3 = results.release[0].ReleaseStartDate.substr(8,2);
+                    relstartdate = relstartdate1+relstartdate2+relstartdate3;
+                    relstartdate = parseInt(relstartdate);
+                    
+                    relenddate1 = results.release[0].ReleaseDate.substr(0,4);
+                    relenddate2 = results.release[0].ReleaseDate.substr(5,2);
+                    relenddate3 = results.release[0].ReleaseDate.substr(8,2);
+                    relenddate = relenddate1+relenddate2+relenddate3;
+                    relenddate = parseInt(relenddate);
+                                         
+                    //parse each iteration for inclusive dates to release
+                    validiterationcounter = 0;
+                    for (var iterationNdx = 0; iterationNdx < nbrIterations; iterationNdx++) {
+                    
+                            //convert iteration dates to something useful
+                            istartdate1 = results.iteration[iterationNdx].StartDate.substr(0,4);
+                            istartdate2 = results.iteration[iterationNdx].StartDate.substr(5,2);
+                            istartdate3 = results.iteration[iterationNdx].StartDate.substr(8,2);
+                            istartdate = istartdate1+istartdate2+istartdate3;
+                            istartdate = parseInt(istartdate);
+ 
+                            //convert iteration dates to something useful
+                            ienddate1 = results.iteration[iterationNdx].EndDate.substr(0,4);
+                            ienddate2 = results.iteration[iterationNdx].EndDate.substr(5,2);
+                            ienddate3 = results.iteration[iterationNdx].EndDate.substr(8,2);
+                            ienddate = ienddate1+ienddate2+ienddate3;
+                            ienddate = parseInt(ienddate);
+                    
+                            //remember if iteration is part of this release
+                            if ((istartdate >= relstartdate) && (ienddate <= relenddate)) {
+                                validiterationstart[validiterationcounter] = parseInt(istartdate);
+                                validiterationend[validiterationcounter] = parseInt(ienddate);
+                                validiterationname[validiterationcounter] = results.iteration[iterationNdx].Name;
+                                validiterationcounter++;
+                            };
+                    };
+
+                    validiterationstart.reverse();
+                    validiterationend.reverse();
+                    validiterationname.reverse();
+
+                    // set current date
+                    var currentTime = new Date();
+                    var month = (currentTime.getMonth() + 1);
+                    var day = currentTime.getDate();
+                    var year = currentTime.getFullYear();
+                    var months = (month + "");
+                    var days = (day + "");
+                    
+                    if (months.length == 1) {
+                        month = "0" + month;
+                    };
+                    if (days.length == 1) {
+                        day = "0" + day;
+                    };
+                    var today = year+""+month+""+day;
+
+                    // localize stories
+                    gStories = gStories.concat(results.stories);
+                    
+                    // get # of stories
+                    nbrStories = gStories.length;
+                   
+                    // loop through each story
+                    for (var storyNdx = 0; storyNdx < nbrStories; storyNdx++) {
+                        
+                        // localize the story
+                        aStory = gStories[storyNdx];                       
+                        nbrTestCases = aStory.TestCases.length;
+                        
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            aTest = aStory.TestCases[testNdx];
+                            type = "Story";
+                            storytests++;
+
+                            // add contents to null results
+                            aTest.LastRun = aTest.LastRun || "000000000000";
+                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
+
+                            //convert dates to something useful
+                            date1 = aTest.LastRun.substr(0,4);
+                            date2 = aTest.LastRun.substr(5,2);
+                            date3 = aTest.LastRun.substr(8,2);
+                            dater = date1+date2+date3;
+                            idater = parseInt(dater);
+                            
+                            // convert to check if test was created during current iteration
+                            createddate1 = aTest.CreationDate.substr(0,4);
+                            createddate2 = aTest.CreationDate.substr(5,2);
+                            createddate3 = aTest.CreationDate.substr(8,2);
+                            createddater = createddate1+createddate2+createddate3;
+                            icreateddater = parseInt(createddater);
+
+                            // check if test was last run during valid iteration
+                            nbrValidIterations = validiterationstart.length;
+                            for (var validiterationNdx = 0; validiterationNdx < nbrValidIterations; validiterationNdx++) { 
+
+                                if (validiterationstart[validiterationNdx] > today && validiterationname[validiterationNdx] == aStory.Iteration.Name) {
+                                    run = "<I>[No Data this Iteration]</I>";
+                                    verdict = "<I>[No Results this Iteration]</I>";
+                                    validiterationNdx = nbrValidIterations;
+                                } else if (idater == 0) {
+                                    run = "<I>[No Data this Iteration]</I>";
+                                    verdict = "<I>[No Results this Iteration]</I>";
+                                    validiterationNdx = nbrValidIterations;
+                                } else if (idater >= validiterationstart[validiterationNdx] && idater <= validiterationend[validiterationNdx] && validiterationname[validiterationNdx] == aStory.Iteration.Name) {
+                                    run = aTest.LastRun.substr(0,10);
+                                    verdict = aTest.LastVerdict.substr(0,10);
+                                    validiterationNdx = nbrValidIterations;
+                                } else if (idater >= validiterationstart[validiterationNdx] && idater <= validiterationend[validiterationNdx] && validiterationNdx > 0) {
+                                    run = aTest.LastRun.substr(0,10);
+                                    verdict = aTest.LastVerdict.substr(0,10);
+                                };
+                            };
+
+                            // check if test was created during the current release
+                            if (icreateddater >= relstartdate && icreateddater <= relenddate) { 
+                                newtestcounter++;
+                            };
+                                
+                            // check if test was automated
+                            if (aTest.Method != "Manual") {
+                                automationcounter++;
+                            };
+
+                            // verify verdict for counter
+                            if (verdict == "Pass") {
+                               passcounter++;
+                            } else if (verdict == "Fail") {
+                               failcounter++;
+                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
+                               notruncounter++;
+                            };
+
+                            //check number of automated and manual tests passing, failing, and not done
+                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
+                                automatedpass++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
+                                manualpass++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
+                                automatedfail++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
+                                manualfail++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                automationnotdone++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                manualnotdone++;
+                            };
+                                                   
+                        };
+                        // end for each test case
+                    
+                    };
+                    // end for each story
+
+                    // localize defects
+                    gDefects = gDefects.concat(results.defects);
+                      
+                    // get # of DEFECTS
+                    nbrDefects = gDefects.length;
+                    
+                    // loop through each defect
+                    for (var defectNdx = 0; defectNdx < nbrDefects; defectNdx++) {
+                        
+                        // localize the defect
+                        aDefect = gDefects[defectNdx];
+                          
+                        nbrTestCases = aDefect.TestCases.length;
+                     
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            aTest = aDefect.TestCases[testNdx];
+                            type = "Defect";
+                            defecttests++;
+
+                            // add contents to null results
+                            aTest.LastRun = aTest.LastRun || "000000000000";
+                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
+
+                            //convert dates to something useful
+                            date1 = aTest.LastRun.substr(0,4);
+                            date2 = aTest.LastRun.substr(5,2);
+                            date3 = aTest.LastRun.substr(8,2);
+                            dater = date1+date2+date3;
+                            idater = parseInt(dater);
+                            
+                            // convert to check if test was created during current iteration
+                            createddate1 = aTest.CreationDate.substr(0,4);
+                            createddate2 = aTest.CreationDate.substr(5,2);
+                            createddate3 = aTest.CreationDate.substr(8,2);
+                            createddater = createddate1+createddate2+createddate3;
+                            icreateddater = parseInt(createddater);
+
+                            // check if test was last run during valid iteration
+                            nbrValidIterations = validiterationstart.length;
+                            for (var validiterationNdx = 0; validiterationNdx < nbrValidIterations; validiterationNdx++) { 
+                                if (idater >= validiterationstart[validiterationNdx] && idater <= validiterationend[validiterationNdx]) {
+                                    run = aTest.LastRun.substr(0,10);
+                                    verdict = aTest.LastVerdict.substr(0,10);
+                                    validiterationNdx = nbrValidIterations;
+                                } else {
+                                    run = "<I>[No Data this Iteration]</I>";
+                                    verdict = "<I>[No Results this Iteration]</I>";
+                                };
+                            };
+
+                            // check if test was created during the current release
+                            if (icreateddater >= relstartdate && icreateddater <= relenddate) { 
+                                newtestcounter++;
+                            };
+                            
+                            // check if test was automated
+                            if (aTest.Method != "Manual") {
+                                automationcounter++;
+                            };
+
+                            // verify verdict for counter
+                            if (verdict == "Pass") {
+                               passcounter++;
+                            } else if (verdict == "Fail") {
+                               failcounter++;
+                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
+                               notruncounter++;
+                            };
+
+                            //check number of automated and manual tests passing, failing, and not done
+                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
+                                automatedpass++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
+                                manualpass++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
+                                automatedfail++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
+                                manualfail++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                automationnotdone++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                manualnotdone++;
+                            };
+                            
+                        };
+                        // end for each test case
+                    
+                    };
+                    // end for each DEFECT
+
+                    // localize test sets
+                    gTestSets= gTestSets.concat(results.testset);
+                      
+                    // get # of test sets
+                    nbrTestSets = gTestSets.length;
+                    
+                    // loop through each test set
+                    for (var testsetNdx = 0; testsetNdx < nbrTestSets; testsetNdx++) {
+                        
+                        // localize the test sets
+                        aTestSet = gTestSets[testsetNdx];
+                          
+                        nbrTestCases = aTestSet.TestCases.length;
+                     
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            aTest = aTestSet.TestCases[testNdx];
+                            type = "Test Set";
+                            settests++;
+
+                            // add contents to null results
+                            aTest.LastRun = aTest.LastRun || "000000000000";
+                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
+
+                            //convert dates to something useful
+                            date1 = aTest.LastRun.substr(0,4);
+                            date2 = aTest.LastRun.substr(5,2);
+                            date3 = aTest.LastRun.substr(8,2);
+                            dater = date1+date2+date3;
+                            idater = parseInt(dater);
+                            
+                            // convert to check if test was created during current iteration
+                            createddate1 = aTest.CreationDate.substr(0,4);
+                            createddate2 = aTest.CreationDate.substr(5,2);
+                            createddate3 = aTest.CreationDate.substr(8,2);
+                            createddater = createddate1+createddate2+createddate3;
+                            icreateddater = parseInt(createddater);
+
+                            // check if test was last run during valid iteration
+                            nbrValidIterations = validiterationstart.length;
+                            for (var validiterationNdx = 0; validiterationNdx < nbrValidIterations; validiterationNdx++) { 
+                                if (idater >= validiterationstart[validiterationNdx] && idater <= validiterationend[validiterationNdx]) {
+                                    run = aTest.LastRun.substr(0,10);
+                                    verdict = aTest.LastVerdict.substr(0,10);
+                                    validiterationNdx = nbrValidIterations;
+                                } else {
+                                    run = "<I>[No Data this Iteration]</I>";
+                                    verdict = "<I>[No Results this Iteration]</I>";
+                                };
+                            };
+
+                            // check if test was created during the current release
+                            if (icreateddater >= relstartdate && icreateddater <= relenddate) { 
+                                newtestcounter++;
+                            };
+                            
+                            // check if test was automated
+                            if (aTest.Method != "Manual") {
+                                automationcounter++;
+                            };
+
+                            // verify verdict for counter
+                            if (verdict == "Pass") {
+                               passcounter++;
+                            } else if (verdict == "Fail") {
+                               failcounter++;
+                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
+                               notruncounter++;
+                            };
+
+                            //check number of automated and manual tests passing, failing, and not done
+                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
+                                automatedpass++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
+                                manualpass++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
+                                automatedfail++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
+                                manualfail++;
+                            };
+                            
+                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                automationnotdone++;
+                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
+                                manualnotdone++;
+                            };
+
+                        };
+                        // end for each test case
+                    
+                    };
+                    // end for each test set
+
+                    // determine total number of tests for summary
+                    var alltests = (settests + defecttests + storytests);
+                    
+                    //determine number of manual tests
+                    var manualtests = alltests - automationcounter;
+      
+                    //determine any not accounted for test execution
+                    var othertests = (alltests - passcounter - failcounter - notruncounter);
+                    var otherautotests = (automationcounter - automatedpass - automatedfail - automationnotdone);
+                    var othermanualtests = (manualtests - manualpass - manualfail - manualnotdone);
+
+                    //determine automated tests failing and automated test fail percentage
+                    var autotestsfailed = ((parseInt(automatedfail)*100)/parseInt(automationcounter));
+
+                    //determine manual tests failing and manual test fail percentage
+                    var mantestsfailed = ((parseInt(manualfail)*100)/parseInt(manualtests));
+                                                                  
+                    //determine automated tests passing and automated test pass percentage
+                    var autotestspassed = ((parseInt(automatedpass)*100)/parseInt(automationcounter));
+                    var autotestsnotdone = ((parseInt(automationnotdone)*100)/parseInt(automationcounter));
+                    var autotestsother = ((parseInt(otherautotests)*100)/parseInt(automationcounter));
+                    if (automationcounter == 0) {
+                       autotestsnotdone = 0;
+                       autotestspassed = 0;
+                       autotestsfailed = 0;
+                       autotestsother = 0;
+                       autotestsdone = 0;
+                    } else {
+                       autotestsdone = (100 - autotestsnotdone);
+                    };
+                    
+                    //determine manual tests passing and manual test pass percentage
+                    var mantestspassed = ((parseInt(manualpass)*100)/parseInt(manualtests));
+                    var mantestsnotdone = ((parseInt(manualnotdone)*100)/parseInt(manualtests));
+                    var mantestsother = ((parseInt(othermanualtests)*100)/parseInt(manualtests));
+                    if (manualtests == 0) {
+                       mantestsnotdone = 0;
+                       mantestspassed = 0;
+                       mantestsfailed = 0;
+                       mantestsother = 0;
+                       mantestsdone = 0;
+                    } else {
+                       mantestsdone = (100 - mantestsnotdone);
+                    };
+
+                    //determine cumulative testing complete
+                    var totalpercentage = ((parseInt(notruncounter)*100)/parseInt(alltests));
+                    totalpercentage = (100-totalpercentage);
+
+                    //determine cumulative test pass and fail as percentages
+                    var alltestpasspercent = ((passcounter*100)/alltests);
+                    var alltestfailpercent = ((failcounter*100)/alltests);
+                    var othertestpercent = ((othertests*100)/alltests);
+                    var notrunpercent = ((notruncounter*100)/alltests);
+
+                    //clean up variables if number of tests = 0
+                    if (alltests == 0) {
+                        totalpercentage = 0;
+                        alltestpasspercent = 0;
+                        alltestfailpercent = 0;
+                        othertestpercent = 0;
+                        notrunpercent = 0;
+                    };
+                       
+                    // display the summary and populated table
+                    document.getElementById('summary').innerHTML = ("<H3><p style=color:green>CUMULATIVE RELEASE TEST SUMMARY:</p></H3>");
+                                                        
+                    document.getElementById('summary1').innerHTML = ("Cumulative Tests Executed to Date: " + (alltests-notruncounter) + " out of " + alltests + ("<div style=\"position: relative; line-height: 1em; background-color: none; border: 1px solid black; width: 300px\">") + ("<div style=\"height: 1.5em; width: " + (3*totalpercentage) + "px; background-color: SteelBlue ;\"></div>") + ("<div style=\"position: absolute; text-align: center; padding-top: .25em; width: 300px; top: 0; left: 0\"><B>" + totalpercentage.toFixed(0) + "%</B></div></div>"));
+
+                    document.getElementById('summary2').innerHTML = ("Tests Remaining to Run: " + notruncounter + " out of " + alltests + ("<div style=\"position: relative; line-height: 1em; background-color: none; border: 1px solid black; width: 300px\">") + ("<div style=\"height: 1.5em; width: " + (3*notrunpercent) + "px; background-color: Khaki;\"></div>") + ("<div style=\"position: absolute; text-align: center; padding-top: .25em; width: 300px; top: 0; left: 0\"><B>" + notrunpercent.toFixed(0) + "%</B></div></div>"));
+
+                    document.getElementById('summary3').innerHTML = ("Passing Tests: " + passcounter + " out of " + alltests + ("<div style=\"position: relative; line-height: 1em; background-color: none; border: 1px solid black; width: 300px\">") + ("<div style=\"height: 1.5em; width: " + (3*alltestpasspercent) + "px; background-color: ForestGreen;\"></div>") + ("<div style=\"position: absolute; text-align: center; padding-top: .25em; width: 300px; top: 0; left: 0\"><B>" + alltestpasspercent.toFixed(0) + "%</B></div></div>"));
+                    
+                    document.getElementById('summary4').innerHTML = ("Failing Tests: " + failcounter + " out of " + alltests + ("<div style=\"position: relative; line-height: 1em; background-color: none; border: 1px solid black; width: 300px\">") + ("<div style=\"height: 1.5em; width: " + (3*alltestfailpercent) + "px; background-color: FireBrick;\"></div>") + ("<div style=\"position: absolute; text-align: center; padding-top: .25em; width: 300px; top: 0; left: 0\"><B>" + alltestfailpercent.toFixed(0) + "%</B></div></div>"));
+                    
+                    document.getElementById('summary5').innerHTML = ("Other Test Results - blocked, etc: " + othertests + " out of " + alltests + ("<div style=\"position: relative; line-height: 1em; background-color: none; border: 1px solid black; width: 300px\">") + ("<div style=\"height: 1.5em; width: " + (3*othertestpercent) + "px; background-color: Grey;\"></div>") + ("<div style=\"position: absolute; text-align: center; padding-top: .25em; width: 300px; top: 0; left: 0\"><B>" + othertestpercent.toFixed(0) + "%</B></div></div>") + "<BR><P>");
+                    
+                    document.getElementById('summary6').innerHTML = ("<H3><p style=color:green>WORK PRODUCT BREAKDOWN:</p></H3><P>Total Number of Tests to Execute this Release: " + alltests +"<BR>Tests associated with Stories: " + storytests + "<BR>Tests associated with Defects: " + defecttests + "<BR>Tests associated with Test Sets: " + settests + "<BR>New Test Cases Created this Release: " + newtestcounter);
+                    
+                    document.getElementById('summary7').innerHTML = ("<P><p style=color:red>Note: This app presents valid test case result data for the current release only -<BR>it is not for historical test case verdict reference.<BR>Data queried for this app is final test results only.</p><BR>");
+                                      
+                };
+                // end function
+                
+                function init(){
+                
+                    // Setup Release Dropdown
+                    var releaseDropdownConfig = {};
+                    gReleaseDropdown = new rally.sdk.ui.ReleaseDropdown(releaseDropdownConfig, rallyDataSource);
+                    
+                    gReleaseDropdown.display("release_selection", onReleaseSelected);
+                    
+                }
+                
+                // call querying function
+                init();
+                
+            }
+            
+            rally.addOnLoad(tableExample);
+        </script>
+    </head>
+    <body>
+        <div id="release_selection">
+        </div><P>
+                <div id="summary">
+        </div><P>
+                <div id="summary1">
+        </div><P>
+                <div id="summary2">
+        </div><P>
+                <div id="summary3">
+        </div><P>
+                <div id="summary4">
+        </div><P>
+                <div id="summary5">
+        </div><P>
+                <div id="summary6">
+        </div><P>
+                <div id="summary7">
+        </div><P>
+
+        <div id="table_output">
+        </div>
+    </body>
+</html>

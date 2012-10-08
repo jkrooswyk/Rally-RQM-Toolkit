@@ -1,0 +1,342 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!-- Copyright (c) 2010  Rally Software Development Corp.  All rights reserved -->
+<html>
+    <head>
+        <title>Exportable Test Cases with Steps for IE</title>
+        <meta name="Name" content="Exportable Test Cases with Steps for IE Browsers" />
+        <meta name="Version" content="1.0" />
+        <meta name="Vendor" content="Rally Software" />
+        <meta name="Author" content="Joel K" />
+        <script src='/apps/1.31/sdk.js' type='text/javascript'>
+        </script>
+        <script type="text/javascript">
+            
+        // WHAT THIS IS: This app queries iteratively test cases tied to any iteration, plus their steps, and allows a client-side Data URL export to CSV.
+
+            // declare global variables
+            var gStories = new Array();
+            var gIterationDropdown;
+            var gTable;
+            var buildCSV;
+            var downloadButton;
+            var tableWindow;
+            
+            function tableExample(){
+            
+                var rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__', '__PROJECT_OID__', '__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
+                
+                function onIterationSelected(){
+                
+                    var queryStr;
+                    var queryArray = [];
+                    
+                    // clean out any old stuff from prior runs
+                    gStories = [];
+                    gDefects = [];
+                    gTestSets = [];
+                    
+                    if (gTable != null) 
+                        gTable.destroy();
+                    
+                    dojo.empty(dojo.byId('table_output'));
+                    dojo.empty(dojo.byId('downloadButton'));
+                    
+                    // setup query string
+                    queryStr = "(Iteration.Name = " + "\"" + gIterationDropdown.getSelectedName() + "\")";
+                    
+                    // setup story query
+                    queryArray[0] = {
+                        key: 'stories',
+                        type: 'HierarchicalRequirement',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,Steps,StepIndex,Input,ExpectedResult'
+                    };
+                    
+                    // setup defect query
+                    queryArray[1] = {
+                        key: 'defects',
+                        type: 'Defect',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,Steps,StepIndex,Input,ExpectedResult'
+                    };
+
+                    // setup test set query
+                    queryArray[2] = {
+                        key: 'testset',
+                        type: 'TestSet',
+                        query: queryStr,
+                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,TestCases,Steps,StepIndex,Input,ExpectedResult'
+                    };
+                                                          
+                    // execute query
+                    rallyDataSource.findAll(queryArray, populateTable);
+                    
+                }
+                
+                function populateTable(results){
+                console.log(results);   
+                             
+                    var nbrStories;
+                    var nbrDefects;
+                    var nbrTestCases;
+                    var nbrTestSets;
+                    var aStory;
+                    var aDefect;
+                    var aTest;
+                    var aTestSet
+                    var type;
+                    
+                    var tableDiv;
+                    var tableConfig;
+                    
+                    var testRowInfo;
+                    
+                    // create the output table
+                    tableDiv = document.getElementById('table_output');
+                    tableConfig = {
+                        columns: [{
+                            key: 'Test Case ID' //,
+                        }, {
+                            key: 'Test Case Name' //,
+                        }, {
+                            key: 'Association' //,
+                        }, {
+                            key: 'Work Product Name' //,
+                        }, {
+                            key: 'Steps (Input)' //,
+                        }, {
+                            key: 'Steps (Expected Results)' //,
+                        }]
+                    };
+                    buildCSV = "Test Case ID,Test Case Name,Association,Work Product Name,Test Case Steps (Input),Steps (Expected Results) <P>";
+                    
+                    gTable = new rally.sdk.ui.Table(tableConfig);
+                 
+                    // localize stories
+                    gStories = gStories.concat(results.stories);
+                    
+                    // get # of stories
+                    nbrStories = gStories.length;
+                    
+                    // loop through each story
+                    for (var storyNdx = 0; storyNdx < nbrStories; storyNdx++) {
+                        
+                        // localize the story
+                        aStory = gStories[storyNdx];
+                          
+                        nbrTestCases = aStory.TestCases.length;
+                        
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            aTest = aStory.TestCases[testNdx];
+                            type = "Story"
+                            
+                            nbrTestSteps = aTest.Steps.length
+                                                           
+                            for (var stepNdx = 0; stepNdx < nbrTestSteps; stepNdx++) {
+                                if (stepNdx == 0) {
+                                    aTest.Inputs = ("<B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].Input);
+                                    aTest.Results = ("<B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].ExpectedResult);
+                                    aTest.StepsCSV = ((aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].Input + "," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].ExpectedResult + "<BR>");
+                                } else {
+                                    aTest.Inputs = aTest.Inputs + ("<BR><B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].Input);
+                                    aTest.Results = aTest.Results + ("<BR><B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].ExpectedResult);
+                                    aTest.StepsCSV = (aTest.StepsCSV + ",,,," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].Input + "," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].ExpectedResult  + "<BR>");
+                                };
+                            };
+
+                            if (nbrTestSteps == 0) {
+                                aTest.Inputs = "<I>Steps not defined</I>";
+                                aTest.Results = "<I>Expected Results not defined</I>";
+                                aTest.StepsCSV = "Steps not defined,Expected Results not defined";
+                            };
+                                                         
+                            testRowInfo = {
+                                'Work Product Name': aStory.Name,
+                                'Test Case Name': aTest.Name,
+                                'Test Case ID': aTest.FormattedID,
+                                'Association': type,
+                                'Steps (Input)': aTest.Inputs,
+                                'Steps (Expected Results)': aTest.Results
+                            };
+                            gTable.addRow(testRowInfo);
+                            
+                            //format for CSV
+                            //aTest.Name = aTest.Name.replace(/ /g,"%20");
+                            //aStory.NameCSV = aStory.Name.replace(/ /g,"%20");
+                            //aTest.StepsCSV = aTest.StepsCSV.replace(/ /g,"%20");
+                            buildCSV = buildCSV + aTest.FormattedID + "," + aTest.Name + "," + type + "," + aStory.Name + "," + aTest.StepsCSV + "<P>";                                                   
+                        };
+                        // end for each test case
+                    
+                    };
+                    // end for each story
+
+                    // localize defects
+                    gDefects = gDefects.concat(results.defects);
+                      
+                    // get # of DEFECTS
+                    nbrDefects = gDefects.length;
+                    
+                    // loop through each defect
+                    for (var defectNdx = 0; defectNdx < nbrDefects; defectNdx++) {
+                        
+                        // localize the defect
+                        aDefect = gDefects[defectNdx];
+                          
+                        nbrTestCases = aDefect.TestCases.length;
+                     
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            aTest = aDefect.TestCases[testNdx];
+                            type = "Defect"
+                            
+                            nbrTestSteps = aTest.Steps.length
+                                                           
+                            for (var stepNdx = 0; stepNdx < nbrTestSteps; stepNdx++) {
+                                if (stepNdx == 0) {
+                                    aTest.Inputs = ("<B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].Input);
+                                    aTest.Results = ("<B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].ExpectedResult);
+                                    aTest.StepsCSV = ((aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].Input + "," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].ExpectedResult + "<BR>");
+                                } else {
+                                    aTest.Inputs = aTest.Inputs + ("<BR><B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].Input);
+                                    aTest.Results = aTest.Results + ("<BR><B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].ExpectedResult);
+                                    aTest.StepsCSV = (aTest.StepsCSV + ",,,," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].Input + "," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].ExpectedResult  + "<BR>");
+                                };
+                            };
+
+                            if (nbrTestSteps == 0) {
+                                aTest.Inputs = "<I>Steps not defined</I>";
+                                aTest.Results = "<I>Expected Results not defined</I>";
+                                aTest.StepsCSV = "Steps not defined,Expected Results not defined";
+                            };
+                            
+                            testRowInfo = {
+                                'Work Product Name': aDefect.Name,
+                                'Test Case Name': aTest.Name,
+                                'Test Case ID': aTest.FormattedID,
+                                'Association': type,
+                                'Steps (Input)': aTest.Inputs,
+                                'Steps (Expected Results)': aTest.Results
+                            };
+                            gTable.addRow(testRowInfo);
+
+                            //format for CSV
+                            //aTest.Name = aTest.Name.replace(/ /g,"%20");
+                            //aDefect.NameCSV = aDefect.Name.replace(/ /g,"%20");
+                            //aTest.StepsCSV = aTest.StepsCSV.replace(/ /g,"%20");
+                            buildCSV = buildCSV + aTest.FormattedID + "," + aTest.Name + "," + type + "," + aDefect.Name + "," + aTest.StepsCSV + "<P>";    
+                                                       
+                        };
+                        // end for each test case
+                    
+                    };
+                    // end for each DEFECT
+
+                    // localize test sets
+                    gTestSets= gTestSets.concat(results.testset);
+                      
+                    // get # of test sets
+                    nbrTestSets = gTestSets.length;
+                    
+                    // loop through each test set
+                    for (var testsetNdx = 0; testsetNdx < nbrTestSets; testsetNdx++) {
+                        
+                        // localize the test sets
+                        aTestSet = gTestSets[testsetNdx];
+                          
+                        nbrTestCases = aTestSet.TestCases.length;
+                     
+                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
+                        
+                            aTest = aTestSet.TestCases[testNdx];
+                            type = "Test Set"
+                            
+                            nbrTestSteps = aTest.Steps.length
+                                                           
+                            for (var stepNdx = 0; stepNdx < nbrTestSteps; stepNdx++) {
+                                if (stepNdx == 0) {
+                                    aTest.Inputs = ("<B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].Input);
+                                    aTest.Results = ("<B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].ExpectedResult);
+                                    aTest.StepsCSV = ((aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].Input + "," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].ExpectedResult + "<BR>");
+                                } else {
+                                    aTest.Inputs = aTest.Inputs + ("<BR><B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].Input);
+                                    aTest.Results = aTest.Results + ("<BR><B>" + (aTest.Steps[stepNdx].StepIndex+1) + ". </B>" + aTest.Steps[stepNdx].ExpectedResult);
+                                    aTest.StepsCSV = (aTest.StepsCSV + ",,,," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].Input + "," + (aTest.Steps[stepNdx].StepIndex+1) + ". " + aTest.Steps[stepNdx].ExpectedResult  + "<BR>");
+                                };
+                            };
+
+                            if (nbrTestSteps == 0) {
+                                aTest.Inputs = "<I>Steps not defined</I>";
+                                aTest.Results = "<I>Expected Results not defined</I>";
+                                aTest.StepsCSV = "Steps not defined,Expected Results not defined";
+                            };
+                            
+                            testRowInfo = {
+                                'Work Product Name': aTestSet.Name,
+                                'Test Case Name': aTest.Name,
+                                'Test Case ID': aTest.FormattedID,
+                                'Association': type,
+                                'Steps (Input)': aTest.Inputs,
+                                'Steps (Expected Results)': aTest.Results
+                            };
+                            gTable.addRow(testRowInfo);
+
+                            //format for CSV
+                            //aTest.Name = aTest.Name.replace(/ /g,"%20");
+                            //aTestSet.NameCSV = aTestSet.Name.replace(/ /g,"%20");
+                            //aTest.StepsCSV = aTest.StepsCSV.replace(/ /g,"%20");
+                            buildCSV = buildCSV + aTest.FormattedID + "," + aTest.NameCSV + "," + type + "," + aTestSet.Name + "," + aTest.StepsCSV + "<P>";                                
+                        };
+                        // end for each test case
+                    
+                    };
+                    // end for each test set
+                    
+                    // display the populated table
+
+                    downloadButton = new rally.sdk.ui.basic.Button({
+                        text: "View as CSV"
+                    });
+                    downloadButton.addEventListener('onClick', downloadLaunch);
+                    downloadButton.display('downloadButton');                                        
+                    
+                    gTable.display(tableDiv);
+ 
+                    function downloadLaunch() {
+                        tableWindow = window.open();
+                        tableWindow.document.write(buildCSV);
+                        tableWindow.focus();
+                    }
+                                       
+                };
+                // end function
+                                
+                function init(){
+                
+                    // Setup Iteration Dropdown
+                    var iterationDropdownConfig = {};
+                    gIterationDropdown = new rally.sdk.ui.IterationDropdown(iterationDropdownConfig, rallyDataSource);
+                    
+                    gIterationDropdown.display("iteration_selection", onIterationSelected);
+                    
+                }
+                
+                // call querying function
+                init();
+                
+            }
+            
+            rally.addOnLoad(tableExample);
+            
+        </script>
+    </head>
+    <body>
+        <div id="iteration_selection">
+        </div><P>
+        <div id="downloadButton">
+        </div><P>
+        <div id="table_output">
+        </div>
+    </body>
+</html>
